@@ -1198,13 +1198,33 @@ def process_orders_preserve_format(orders_path, output_path, template):
     sku_col_letter = _col_idx_to_letter(sku_col_1based)
     cust_col_letter = _col_idx_to_letter(cust_col_1based)
 
-    channel_col_letter = None
-    delivery_col_letter = None
-    # AC/AS 固定列号，始终生效（XML 修改时会创建不存在的列）
-    channel_col_letter = 'AC'
-    delivery_col_letter = 'AS'
+    # ── 识别加急列（K列：按列名优先，回退到固定位置索引10）──
+    urgent_col_name = _find_column(df, ["加急", "urgent", "紧急", "加急标志"])
+    if urgent_col_name:
+        urgent_col_index = list(df.columns).index(urgent_col_name)
+        logger.info(f"加急列识别: {urgent_col_name!r} (索引 {urgent_col_index})")
+    else:
+        urgent_col_index = 10  # 回退到固定 K 列
+        logger.info(f"加急列识别: 未找到列名，使用固定索引 {urgent_col_index}")
 
-    logger.info(f"AC/AS自动填充已启用: channel_col='{channel_col_letter}', delivery_col='{delivery_col_letter}'")
+    # ── AC/AS 列选择：优先按列名匹配，找不到再用固定列号 ──
+    channel_col_name = _find_column(df, ["物流渠道", "运输方式", "物流", "渠道"])
+    delivery_col_name = _find_column(df, ["时效", "配送时效", "时效类型"])
+
+    if channel_col_name:
+        channel_col_letter = _col_idx_to_letter(list(df.columns).index(channel_col_name) + 1)
+        logger.info(f"物流渠道列: {channel_col_name!r} -> {channel_col_letter}")
+    else:
+        channel_col_letter = 'AC'
+        logger.info(f"物流渠道列: 固定位置 {channel_col_letter}")
+
+    if delivery_col_name:
+        delivery_col_letter = _col_idx_to_letter(list(df.columns).index(delivery_col_name) + 1)
+        logger.info(f"时效列: {delivery_col_name!r} -> {delivery_col_letter}")
+    else:
+        delivery_col_letter = 'AS'
+        logger.info(f"时效列: 固定位置 {delivery_col_letter}")
+
     logger.info(f"DataFrame: {len(df)} 行, {len(df.columns)} 列")
 
     # ── 第2步：遍历处理，收集变更 ──
@@ -1226,12 +1246,11 @@ def process_orders_preserve_format(orders_path, output_path, template):
         # ── 确保此行在 updates 中有条目录入 ──
         row_updates = updates.setdefault(excel_row, {})
 
-        # ── AC/AS 自动填充（使用固定列号，不依赖列名识别）──
+        # ── AC/AS 自动填充（按列名或固定位置读取加急列）──
         if channel_col_letter and delivery_col_letter:
-            # 读取 K 列（第11列，0-indexed: 10）的值判断是否加急
             urgent_val = ""
-            if len(df.columns) >= 11:
-                raw = row.iloc[10]
+            if urgent_col_index is not None and urgent_col_index < len(df.columns):
+                raw = row.iloc[urgent_col_index]
                 urgent_val = str(raw).strip().upper() if pd.notna(raw) else ""
             row_updates[channel_col_letter] = "快递" if urgent_val == "Y" else "经济线"
             row_updates[delivery_col_letter] = "2" if urgent_val == "Y" else "1"
@@ -1271,18 +1290,35 @@ def process_orders_preserve_format(orders_path, output_path, template):
             if not os.path.exists(sheet_path):
                 raise FileNotFoundError(f"工作表文件不存在: {sheet_path}")
 
-            # 注册命名空间
-            ET.register_namespace('', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
-            ET.register_namespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships')
+            # 修复1：先读取原始 XML，清理重复的 xmlns 属性后再解析
+            _ns_uri = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+            _r_uri  = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+            with open(sheet_path, 'r', encoding='utf-8') as _f:
+                _raw_xml = _f.read()
+            # 移除根元素上所有 xmlns 声明（ElementTree 解析后 register_namespace 会重新生成）
+            _raw_xml = re.sub(
+                r'\s+xmlns(?::\w+)?\s*=\s*"[^"]*"',
+                '',
+                _raw_xml,
+                count=3,
+            )
+            # 在根元素上添加干净的命名空间声明
+            _raw_xml = _raw_xml.replace(
+                '<worksheet',
+                f'<worksheet xmlns="{_ns_uri}" xmlns:r="{_r_uri}"',
+                1,
+            )
+            with open(sheet_path, 'w', encoding='utf-8') as _f:
+                _f.write(_raw_xml)
+
+            # 注册命名空间（告诉 ElementTree 序列化时使用这些前缀）
+            ET.register_namespace('', _ns_uri)
+            ET.register_namespace('r', _r_uri)
 
             tree = ET.parse(sheet_path)
             root = tree.getroot()
-            
-            # 修复1：确保根元素包含完整命名空间
-            root.set('xmlns', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
-            root.set('xmlns:r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships')
 
-            ns = '{%s}' % root.tag.split('}')[0].split('{')[1] if '}' in root.tag else ''
+            ns = '{%s}' % _ns_uri
 
             sheetdata = root.find(f'{ns}sheetData')
             if sheetdata is None:
