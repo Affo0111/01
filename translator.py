@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("translator")
 
 # ── 版本号（用于 Streamlit Cloud 确认部署版本）──
-__version__ = "2.1.0-acas-fix"
+__version__ = "2.2.0-ss-fix"
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -1334,7 +1334,37 @@ def process_orders_preserve_format(orders_path, output_path, template):
                 if r:
                     row_map[int(r)] = row_elem
 
-            # 3c. 更新目标单元格（使用内联字符串，不修改 sharedStrings.xml）
+            # 3c. 准备 sharedStrings：读取已有字符串，为新值分配索引
+            shared_path = os.path.join(tmpdir, 'xl', 'sharedStrings.xml')
+            shared_strings = []
+            shared_count_attr = '0'
+            if os.path.exists(shared_path):
+                _ss_tree = ET.parse(shared_path)
+                _ss_root = _ss_tree.getroot()
+                shared_count_attr = _ss_root.get('count', '0')
+                for _si in _ss_root.findall(f'{ns}si'):
+                    _t_elem = _si.find(f'{ns}t')
+                    if _t_elem is not None and _t_elem.text is not None:
+                        shared_strings.append(_t_elem.text)
+                    else:
+                        shared_strings.append('')
+                logger.debug(f"sharedStrings 现有 {len(shared_strings)} 条")
+
+            # 收集所有需要写入的新值，去重后分配索引
+            _all_vals = []
+            for _row_updates in updates.values():
+                _all_vals.extend(_row_updates.values())
+            _unique_vals = list(dict.fromkeys(str(v) for v in _all_vals))  # 保序去重
+            _val_to_idx = {}
+            for _v in _unique_vals:
+                if _v not in shared_strings:
+                    _val_to_idx[_v] = len(shared_strings)
+                    shared_strings.append(_v)
+                else:
+                    _val_to_idx[_v] = shared_strings.index(_v)
+            logger.debug(f"sharedStrings 新增 {len(_val_to_idx)} 条，总计 {len(shared_strings)} 条")
+
+            # 3d. 更新目标单元格（使用 sharedStrings 引用，兼容所有 Excel 版本）
             for excel_row, col_updates in sorted(updates.items()):
                 # 获取或创建行元素
                 if excel_row in row_map:
@@ -1355,6 +1385,7 @@ def process_orders_preserve_format(orders_path, output_path, template):
                 for col_letter, new_val in col_updates.items():
                     new_val = str(new_val) if new_val is not None else ''
                     cell_ref = f'{col_letter}{excel_row}'
+                    ss_idx = _val_to_idx[new_val]  # shared string 索引
 
                     if col_letter in cell_map:
                         c_elem = cell_map[col_letter]
@@ -1362,19 +1393,32 @@ def process_orders_preserve_format(orders_path, output_path, template):
                         c_elem = ET.SubElement(row_elem, f'{ns}c')
                         c_elem.set('r', cell_ref)
 
-                    # 清除旧的子元素（v / f / is），然后写入全新的内联字符串
+                    # 清除旧的子元素（v / f / is）
                     for child in list(c_elem):
                         if child.tag in (f'{ns}v', f'{ns}f', f'{ns}is'):
                             c_elem.remove(child)
 
-                    is_elem = ET.SubElement(c_elem, f'{ns}is')
-                    t_elem = ET.SubElement(is_elem, f'{ns}t')
-                    t_elem.text = new_val
-                    t_elem.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
-                    c_elem.set('t', 'inlineStr')
+                    # 写入 shared string 引用（标准 OOXML 方式）
+                    c_elem.set('t', 's')
+                    v_elem = ET.SubElement(c_elem, f'{ns}v')
+                    v_elem.text = str(ss_idx)
 
             # 写回修改后的 sheet1.xml
             tree.write(sheet_path, xml_declaration=True, encoding='UTF-8')
+
+            # 3e. 写回 sharedStrings.xml（重建，避免 ET 命名空间问题）
+            if _val_to_idx:
+                _ss_lines = [
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+                    f'<sst xmlns="{_ns_uri}" count="{len(shared_strings)}" uniqueCount="{len(shared_strings)}">'
+                ]
+                for _si_text in shared_strings:
+                    _escaped = _si_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                    _ss_lines.append(f'<si><t xml:space="preserve">{_escaped}</t></si>')
+                _ss_lines.append('</sst>')
+                with open(shared_path, 'w', encoding='utf-8') as _f:
+                    _f.write('\n'.join(_ss_lines))
+                logger.debug(f"sharedStrings.xml 已重建: {len(shared_strings)} 条")
 
             # 修复2：验证文件写入成功
             if os.path.exists(sheet_path) and os.path.getsize(sheet_path) > 0:
