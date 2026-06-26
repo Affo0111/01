@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("translator")
 
 # ── 版本号（用于 Streamlit Cloud 确认部署版本）──
-__version__ = "2.3.0-pyxl"
+__version__ = "2.3.1-fmt"
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -1468,15 +1468,21 @@ def process_orders_preserve_format(orders_path, output_path, template):
         shutil.copy2(orders_path, output_path)
         logger.info("无变更，直接复制原文件")
 
-    # ── 第4步：用 openpyxl 直接覆写 AC/AS 列（确保 Excel 兼容）──
+    # ── 第4步：用 openpyxl 直接覆写 AC/AS 列（确保 Excel 兼容 + 格式）──
     if ac_as_map and os.path.exists(output_path):
         try:
+            from openpyxl.styles import Font, Alignment
             _wb = openpyxl.load_workbook(output_path)
             _ws = _wb.active
+            _font = Font(name='宋体', size=12)
+            _align = Alignment(horizontal='center', vertical='center')
             for _excel_row, _col_map in ac_as_map.items():
                 for _col_letter, _val in _col_map.items():
                     _cell_ref = f'{_col_letter}{_excel_row}'
-                    _ws[_cell_ref] = _val
+                    _cell = _ws[_cell_ref]
+                    _cell.value = _val
+                    _cell.font = _font
+                    _cell.alignment = _align
             _wb.save(output_path)
             _wb.close()
             logger.info(f"openpyxl 覆写 AC/AS 完成: {len(ac_as_map)} 行")
