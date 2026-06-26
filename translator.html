@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>表格翻译系统 - 订单定制项翻译工具</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #f5f7fa;
+  --card-bg: #ffffff;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --success: #059669;
+  --warn: #d97706;
+  --error: #dc2626;
+  --text: #1e293b;
+  --text-secondary: #64748b;
+  --border: #e2e8f0;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.10);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* 顶部导航 */
+.navbar {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #fff;
+  padding: 16px 24px;
+  box-shadow: var(--shadow-lg);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.navbar h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.navbar .subtitle {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+/* 卡片 */
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.card h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 上传区域 */
+.upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 640px) {
+  .upload-grid { grid-template-columns: 1fr; }
+}
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  background: #fafbfc;
+}
+.upload-zone:hover {
+  border-color: var(--primary);
+  background: #f5f3ff;
+}
+.upload-zone.active {
+  border-color: var(--primary);
+  background: #eef2ff;
+}
+.upload-zone .icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+.upload-zone .label {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.upload-zone .hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.upload-zone .file-name {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--primary);
+  font-weight: 500;
+}
+.upload-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-success {
+  background: var(--success);
+  color: #fff;
+}
+.btn-success:hover { background: #047857; }
+.btn-outline {
+  background: #fff;
+  color: var(--primary);
+  border: 2px solid var(--primary);
+}
+.btn-outline:hover { background: #f5f3ff; }
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* 进度条 */
+.progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 12px 0;
+  display: none;
+}
+.progress-bar.active { display: block; }
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.3s;
+}
+
+/* 状态徽章 */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-ok { background: #d1fae5; color: #065f46; }
+.badge-warn { background: #fef3c7; color: #92400e; }
+.badge-err { background: #fee2e2; color: #991b1b; }
+
+/* 表格 */
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.stats-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.stats-table td:first-child { color: var(--text-secondary); width: 120px; }
+.stats-table td:last-child { font-weight: 500; }
+
+/* 日志 */
+.log-area {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  font-size: 0.8rem;
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.log-area .log-info  { color: #93c5fd; }
+.log-area .log-warn  { color: #fcd34d; }
+.log-area .log-error { color: #fca5a5; }
+.log-area .log-debug { color: #94a3b8; }
+
+/* 提示信息 */
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  display: none;
+}
+.alert.show { display: block; }
+.alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+.alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+.alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+/* 页脚 */
+.footer {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+.footer a { color: var(--primary); text-decoration: none; }
+
+/* 规则语法参考区 */
+.grammar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.grammar-item {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+.grammar-item code {
+  background: #e2e8f0;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.85em;
+  color: var(--primary);
+}
+.grammar-item .desc {
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 30px;
+  color: var(--text-secondary);
+}
+.empty-state .icon { font-size: 2.5rem; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+  <h1>📊 表格翻译系统</h1>
+  <div class="subtitle">基于自定义语法的订单定制项翻译工具 · 纯前端运行</div>
+</nav>
+
+<div class="container">
+
+  <!-- 步骤1：上传文件 -->
+  <div class="card">
+    <h2>📁 步骤1：上传文件</h2>
+    <div class="upload-grid">
+      <div class="upload-zone" id="zoneTemplate">
+        <div class="icon">📋</div>
+        <div class="label">学习模板</div>
+        <div class="hint">Excel · 包含 SKU 和翻译模板列</div>
+        <div class="file-name" id="tmplName"></div>
+        <input type="file" id="fileTemplate" accept=".xlsx,.xls">
+      </div>
+      <div class="upload-zone" id="zoneOrders">
+        <div class="icon">📦</div>
+        <div class="label">原始订单</div>
+        <div class="hint">Excel · 包含 SKU 和定制项列</div>
+        <div class="file-name" id="ordName"></div>
+        <input type="file" id="fileOrders" accept=".xlsx,.xls">
+      </div>
+    </div>
+  </div>
+
+  <!-- 步骤2：开始处理 -->
+  <div class="card">
+    <h2>⚙️ 步骤2：执行翻译</h2>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnProcess" disabled onclick="processAll()">
+        🚀 开始处理
+      </button>
+      <button class="btn btn-outline" id="btnDownload" disabled onclick="downloadResult()">
+        💾 下载结果
+      </button>
+      <button class="btn btn-outline" id="btnClear" onclick="clearAll()">
+        🗑️ 清空
+      </button>
+    </div>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+    <div id="statsArea" style="display:none; margin-top:12px;"></div>
+  </div>
+
+  <!-- 步骤3：结果 -->
+  <div class="card" id="resultCard" style="display:none;">
+    <h2>📊 步骤3：处理结果</h2>
+    <div id="resultStats"></div>
+    <div style="margin-top: 8px;">
+      <span style="font-size:0.85rem; color:var(--text-secondary);">处理完成后可下载修改后的 Excel 文件</span>
+    </div>
+  </div>
+
+  <!-- 处理日志 -->
+  <div class="card">
+    <h2>📝 处理日志</h2>
+    <div class="log-area" id="logArea">
+      <span class="log-info">等待上传文件...</span>
+    </div>
+  </div>
+
+  <!-- 语法参考 -->
+  <div class="card">
+    <h2>📖 规则语法参考</h2>
+    <div class="grammar-grid">
+      <div class="grammar-item">
+        <code>^[条件] , 后缀</code>
+        <div class="desc">SKU变化（根据条件修改SKU）</div>
+      </div>
+      <div class="grammar-item">
+        <code>![条件]</code>
+        <div class="desc">删除定制项中符合条件的行</div>
+      </div>
+      <div class="grammar-item">
+        <code>=[源]=[目标]</code>
+        <div class="desc">翻译键名或键值对</div>
+      </div>
+      <div class="grammar-item">
+        <code>[位置] ++ [内容]</code>
+        <div class="desc">在指定行下方插入新行</div>
+      </div>
+      <div class="grammar-item">
+        <code>+[内容]</code>
+        <div class="desc">在定制项末尾添加新行</div>
+      </div>
+      <div class="grammar-item">
+        <code>&amp; | ;</code>
+        <div class="desc">逻辑与 / 或 / 子规则分隔</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:0.82rem;color:var(--text-secondary);">
+      优先级：<code>[]</code> &gt; <code>&amp;</code> &gt; <code>|</code> &nbsp;|&nbsp;
+      执行顺序：<code>^</code> → <code>!</code> → <code>=</code> → <code>++</code> → <code>+</code> &nbsp;|&nbsp;
+      转义：<code>\[</code> <code>\]</code> <code>\:</code> <code>\&amp;</code> <code>\|</code> <code>\;</code>
+    </div>
+  </div>
+
+  <div class="footer">
+    表格翻译系统 v2.0 · 纯前端运行，数据不上传服务器 ·
+    <a href="#" onclick="toggleGrammar()">语法帮助</a>
+  </div>
+</div>
+
+<script>
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                        JavaScript 核心引擎                                ║
+// ║          (从 translator.py 完整翻译)                                      ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+// ── 转义字符处理 ──
+const ESCAPE_MAP = [
+  ["\\\\", "\ue000"], ["\\[", "\ue001"], ["\\]", "\ue002"],
+  ["\\:", "\ue003"], ["\\&", "\ue004"], ["\\|", "\ue005"],
+  ["\\;", "\ue006"], ["\\,", "\ue007"]
+];
+const UNESCAPE_MAP = {};
+ESCAPE_MAP.forEach(([seq, ph]) => { UNESCAPE_MAP[ph] = seq[1]; });
+
+function escapeSpecial(s) {
+  let r = s;
+  for (const [seq, ph] of ESCAPE_MAP) r = r.split(seq).join(ph);
+  return r;
+}
+function unescape(s) {
+  let r = s;
+  for (const [ph, ch] of Object.entries(UNESCAPE_MAP)) r = r.split(ph).join(ch);
+  return r;
+}
+
+// ── 条件类 ──
+class KeyValueCondition {
+  constructor(key, value) { this.key = key; this.value = value; } // value=null means key-only
+  matchesLine(line) {
+    line = line.trim();
+    if (this.value === null) {
+      if (line.includes(":")) {
+        const idx = line.indexOf(":");
+        return line.substring(0, idx).trim() === this.key;
+      }
+      return line === this.key;
+    }
+    return line === this.key + ":" + this.value;
+  }
+  existsInLines(lines) { return lines.some(l => this.matchesLine(l)); }
+}
+
+class AndCondition {
+  constructor(children) { this.children = children; }
+  matchesLine(line) { return this.children.every(c => c.matchesLine(line)); }
+  existsInLines(lines) { return this.children.every(c => c.existsInLines(lines)); }
+}
+
+class OrCondition {
+  constructor(children) { this.children = children; }
+  matchesLine(line) { return this.children.some(c => c.matchesLine(line)); }
+  existsInLines(lines) { return this.children.some(c => c.existsInLines(lines)); }
+}
+
+function bracketsBalanced(s) {
+  let d = 0;
+  for (const ch of s) { if (ch === "[") d++; else if (ch === "]") { d--; if (d < 0) return false; } }
+  return d === 0;
+}
+
+function extractBrackets(expr) {
+  expr = expr.trim();
+  if (expr.startsWith("[") && expr.endsWith("]")) {
+    const inner = expr.slice(1, -1);
+    if (bracketsBalanced(inner)) return inner;
+  }
+  return null;
+}
+
+function parseBracketContent(content) {
+  content = content.trim();
+  const idx = content.indexOf(":");
+  if (idx >= 0) {
+    return new KeyValueCondition(content.substring(0, idx).trim(), content.substring(idx + 1).trim());
+  }
+  return new KeyValueCondition(content, null);
+}
+
+function splitByOperator(expr, op) {
+  const parts = [];
+  let depth = 0, current = "";
+  let i = 0;
+  while (i < expr.length) {
+    const ch = expr[i];
+    if (ch === "[") { depth++; current += ch; }
+    else if (ch === "]") { depth--; current += ch; }
+    else if (depth === 0 && expr.substring(i, i + op.length) === op) {
+      parts.push(current.trim());
+      current = "";
+      i += op.length;
+      continue;
+    } else { current += ch; }
+    i++;
+  }
+  parts.push(current.trim());
+  return parts.filter(p => p);
+}
+
+function parseCondition(expr) {
+  expr = expr.trim();
+  const orParts = splitByOperator(expr, "|");
+  if (orParts.length > 1) return new OrCondition(orParts.map(p => parseCondition(p)));
+  const andParts = splitByOperator(expr, "&");
+  if (andParts.length > 1) return new AndCondition(andParts.map(p => parseCondition(p)));
+  const inner = extractBrackets(expr);
+  if (inner === null) throw new Error("无法解析条件: " + expr);
+  return parseBracketContent(inner);
+}
+
+function splitTopLevelPipe(s) {
+  const parts = [];
+  let depth = 0, current = "";
+  for (const ch of s) {
+    if (ch === "[") { depth++; current += ch; }
+    else if (ch === "]") { depth--; current += ch; }
+    else if (ch === "|" && depth === 0) { parts.push(current.trim()); current = ""; }
+    else current += ch;
+  }
+  parts.push(current.trim());
+  return parts.filter(p => p);
+}
+
+// ── 规则类 ──
+class SkuChangeRule {
+  constructor(original, condition, suffix) { this.operator = "^"; this.original = original; this.condition = condition; this.suffix = suffix; }
+  apply(sku, lines) {
+    if (this.condition.existsInLines(lines)) {
+      const ns = applySkuSuffix(sku, this.suffix);
+      log("debug", `  SKU变化: ${sku} → ${ns}（条件满足）`);
+      return [ns, lines];
+    }
+    log("debug", `  SKU变化: 条件不满足，SKU保持 ${sku}`);
+    return [sku, lines];
+  }
+}
+
+class DeleteRule {
+  constructor(original, condition) { this.operator = "!"; this.original = original; this.condition = condition; }
+  apply(sku, lines) {
+    const nl = lines.filter(l => !this.condition.matchesLine(l));
+    const removed = lines.length - nl.length;
+    if (removed > 0) log("debug", `  删除规则: 移除了 ${removed} 行`);
+    else log("debug", `  删除规则: 未找到匹配行`);
+    return [sku, nl];
+  }
+}
+
+class TranslateRule {
+  constructor(original, mappings) { this.operator = "="; this.original = original; this.mappings = mappings; }
+  apply(sku, lines) {
+    const nl = [];
+    for (const line of lines) {
+      let translated = false;
+      for (const [src, tgt] of this.mappings) {
+        if (src.matchesLine(line)) {
+          nl.push(buildTargetLine(line, src, tgt));
+          translated = true;
+          log("debug", `  翻译: ${line} → ${nl[nl.length-1]}`);
+          break;
+        }
+      }
+      if (!translated) nl.push(line);
+    }
+    return [sku, nl];
+  }
+}
+
+class AppendRule {
+  constructor(original, content) { this.operator = "+"; this.original = original; this.content = content; }
+  apply(sku, lines) {
+    log("debug", `  行末添加: ${this.content}`);
+    return [sku, [...lines, this.content]];
+  }
+}
+
+class InsertRule {
+  constructor(original, posCond, content) { this.operator = "++"; this.original = original; this.positionCondition = posCond; this.content = content; }
+  apply(sku, lines) {
+    const nl = [];
+    let inserted = false;
+    for (const line of lines) {
+      nl.push(line);
+      if (this.positionCondition.matchesLine(line)) {
+        nl.push(this.content);
+        inserted = true;
+        log("debug", `  指定位置添加: 在 "${line}" 下方插入 "${this.content}"`);
+      }
+    }
+    if (!inserted) log("warn", `  指定位置添加: 未找到匹配位置，内容 "${this.content}" 未插入`);
+    return [sku, nl];
+  }
+}
+
+function buildTargetLine(line, src, tgt) {
+  line = line.trim();
+  let lineKey = "", lineValue = "";
+  if (line.includes(":")) {
+    const idx = line.indexOf(":");
+    lineKey = line.substring(0, idx).trim();
+    lineValue = line.substring(idx + 1).trim();
+  } else {
+    lineKey = line;
+  }
+  if (tgt.value !== null) {
+    return tgt.key + ":" + tgt.value;
+  } else {
+    return lineValue ? tgt.key + ":" + lineValue : tgt.key;
+  }
+}
+
+// ── 规则解析 ──
+function findTopLevelComma(s) {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "[") depth++;
+    else if (s[i] === "]") depth--;
+    else if (s[i] === "," && depth === 0) return i;
+  }
+  return -1;
+}
+
+function findTopLevelDoublePlus(s) {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "[") depth++;
+    else if (s[i] === "]") depth--;
+    else if (s[i] === "+" && depth === 0 && i + 1 < s.length && s[i + 1] === "+") return i;
+  }
+  return -1;
+}
+
+function parseSingleRule(escaped, original) {
+  const s = escaped.trim();
+  if (s.startsWith("^")) return parseSkuChange(s, original);
+  if (s.startsWith("!")) return parseDelete(s, original);
+  if (s.startsWith("=")) return parseTranslate(s, original);
+  if (findTopLevelDoublePlus(s) >= 0) return parseInsert(s, original);
+  if (s.startsWith("+")) return parseAppend(s, original);
+  throw new Error("无法识别的操作符: " + original);
+}
+
+function parseSkuChange(escaped, original) {
+  const s = escaped.slice(1).trim();
+  if (!s) throw new Error("^ 规则缺少条件: " + original);
+  const commaIdx = findTopLevelComma(s);
+  if (commaIdx < 0) throw new Error("^ 规则缺少逗号分隔: " + original);
+  const condStr = s.substring(0, commaIdx).trim();
+  const suffixRaw = s.substring(commaIdx + 1).trim();
+  if (!condStr) throw new Error("^ 规则条件为空: " + original);
+  if (!suffixRaw) throw new Error("^ 规则后缀为空: " + original);
+  const condition = parseCondition(condStr);
+  const suffix = unescape(suffixRaw);
+  return new SkuChangeRule(original, condition, suffix);
+}
+
+function parseDelete(escaped, original) {
+  const s = escaped.slice(1).trim();
+  if (!s) throw new Error("! 规则缺少条件: " + original);
+  return new DeleteRule(original, parseCondition(s));
+}
+
+function parseTranslate(escaped, original) {
+  const s = escaped.slice(1).trim();
+  if (!s) throw new Error("= 规则内容为空: " + original);
+  const splitIdx = s.indexOf("]=[");
+  if (splitIdx < 0) throw new Error("= 规则格式错误（缺少 ]=[ 分隔）: " + original);
+  const srcPart = s.substring(0, splitIdx + 1).trim();
+  const tgtPart = s.substring(splitIdx + 2).trim();
+  let srcInner = extractBrackets(srcPart);
+  let tgtInner = extractBrackets(tgtPart);
+  if (srcInner === null) throw new Error("= 规则源格式错误: " + original);
+  if (tgtInner === null) throw new Error("= 规则目标格式错误: " + original);
+  srcInner = srcInner.trim(); tgtInner = tgtInner.trim();
+  if (!srcInner) throw new Error("= 规则源为空: " + original);
+  if (!tgtInner) throw new Error("= 规则目标为空: " + original);
+  const srcMaps = splitTopLevelPipe(srcInner);
+  const tgtMaps = splitTopLevelPipe(tgtInner);
+  if (srcMaps.length !== tgtMaps.length) throw new Error("= 规则源映射数量(" + srcMaps.length + ")与目标映射数量(" + tgtMaps.length + ")不一致: " + original);
+  const mappings = [];
+  for (let i = 0; i < srcMaps.length; i++) {
+    mappings.push([parseBracketContent(unescape(srcMaps[i])), parseBracketContent(unescape(tgtMaps[i]))]);
+  }
+  return new TranslateRule(original, mappings);
+}
+
+function parseAppend(escaped, original) {
+  const s = escaped.slice(1).trim();
+  if (!s) throw new Error("+ 规则内容为空: " + original);
+  let inner = extractBrackets(s);
+  if (inner === null) throw new Error("+ 规则格式错误（需要 [...]）: " + original);
+  inner = inner.trim();
+  if (!inner) throw new Error("+ 规则内容为空: " + original);
+  return new AppendRule(original, unescape(inner));
+}
+
+function parseInsert(escaped, original) {
+  const splitIdx = findTopLevelDoublePlus(escaped);
+  if (splitIdx < 0) throw new Error("++ 规则格式错误: " + original);
+  const posPart = escaped.substring(0, splitIdx).trim();
+  const contentPart = escaped.substring(splitIdx + 2).trim();
+  if (!posPart || !contentPart) throw new Error("++ 规则内容不完整: " + original);
+  const posCond = parseCondition(posPart);
+  let inner = extractBrackets(contentPart);
+  if (inner === null) throw new Error("++ 规则内容格式错误（需要 [...]）: " + original);
+  inner = inner.trim();
+  if (!inner) throw new Error("++ 规则内容为空: " + original);
+  return new InsertRule(original, posCond, unescape(inner));
+}
+
+function parseRule(ruleStr) {
+  if (!ruleStr || typeof ruleStr !== "string") return [];
+  const original = ruleStr.trim();
+  if (!original) return [];
+  const escaped = escapeSpecial(original);
+  const subRules = splitByOperator(escaped, ";");
+  if (!subRules.length) return [];
+  const rules = [];
+  for (const sub of subRules) {
+    const s = sub.trim();
+    if (!s) continue;
+    try { rules.push(parseSingleRule(s, original)); }
+    catch (e) { log("error", "规则解析错误: " + e.message + "（原始: " + original + "）"); }
+  }
+  return rules;
+}
+
+// ── SKU 后缀处理 ──
+function applySkuSuffix(sku, suffix) {
+  suffix = suffix.trim();
+  if (!suffix) return sku;
+  if (!suffix.startsWith("-")) suffix = "-" + suffix;
+  const match = sku.match(/-(.+)$/);
+  if (match) {
+    const existing = "-" + match[1];
+    if (existing === suffix) return sku;
+    return sku.substring(0, match.index) + suffix;
+  }
+  return sku + suffix;
+}
+
+// ── 规则执行引擎 ──
+const OP_ORDER = { "^": 0, "!": 1, "=": 2, "++": 3, "+": 4 };
+
+function applyRules(rules, sku, customization) {
+  const sorted = [...rules].sort((a, b) => (OP_ORDER[a.operator] || 99) - (OP_ORDER[b.operator] || 99));
+  let lines = customization ? customization.split("<br>") : [];
+  lines = lines.filter(l => l.trim());
+  let curSku = sku, curLines = [...lines];
+  for (const rule of sorted) {
+    try { [curSku, curLines] = rule.apply(curSku, curLines); }
+    catch (e) { log("error", "规则执行异常: " + e.message + "（规则: " + rule.original + "）"); }
+  }
+  return [curSku, curLines.join("<br>")];
+}
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                        UI 逻辑                                            ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+let tmplFile = null, ordFile = null;
+let tmplWorkbook = null, ordWorkbook = null;
+let resultWorkbook = null;
+let resultStats = null;
+
+// 日志
+function log(level, msg) {
+  const area = document.getElementById("logArea");
+  const cls = "log-" + level;
+  area.innerHTML += `<span class="${cls}">[${level.toUpperCase()}] ${msg}</span>\n`;
+  area.scrollTop = area.scrollHeight;
+}
+
+// 文件上传
+document.getElementById("fileTemplate").addEventListener("change", function(e) {
+  tmplFile = e.target.files[0];
+  document.getElementById("tmplName").textContent = tmplFile ? "✅ " + tmplFile.name : "";
+  checkReady();
+});
+document.getElementById("fileOrders").addEventListener("change", function(e) {
+  ordFile = e.target.files[0];
+  document.getElementById("ordName").textContent = ordFile ? "✅ " + ordFile.name : "";
+  checkReady();
+});
+
+function checkReady() {
+  document.getElementById("btnProcess").disabled = !(tmplFile && ordFile);
+}
+
+// 拖拽高亮
+["zoneTemplate", "zoneOrders"].forEach(id => {
+  const zone = document.getElementById(id);
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("active"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("active"));
+  zone.addEventListener("drop", function(e) {
+    e.preventDefault(); zone.classList.remove("active");
+    const input = zone.querySelector("input[type='file']");
+    input.files = e.dataTransfer.files;
+    input.dispatchEvent(new Event("change"));
+  });
+});
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        resolve(wb);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function findColumn(columns, candidates) {
+  for (const col of columns) {
+    for (const c of candidates) {
+      if (col === c) return col;
+    }
+  }
+  for (const col of columns) {
+    for (const c of candidates) {
+      if (col.toLowerCase() === c.toLowerCase()) return col;
+    }
+  }
+  return null;
+}
+
+function loadTemplate(wb) {
+  const sheetName = wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  if (rows.length < 2) throw new Error("模板文件为空或只有表头");
+  const headers = rows[0].map(h => String(h).trim());
+  let skuCol = findColumn(headers, ["SKU", "sku", "商品编码"]);
+  let ruleCol = findColumn(headers, ["翻译模板", "规则", "rule", "template"]);
+  if (skuCol === null && headers.length >= 2) skuCol = headers[1];
+  if (ruleCol === null && headers.length >= 4) ruleCol = headers[3];
+  if (skuCol === null) throw new Error("无法识别模板中的SKU列。可用列: " + headers.join(", "));
+  if (ruleCol === null) throw new Error("无法识别模板中的规则列。可用列: " + headers.join(", "));
+  const skuIdx = headers.indexOf(skuCol);
+  const ruleIdx = headers.indexOf(ruleCol);
+  log("info", "模板列识别: SKU=" + skuCol + ", 规则=" + ruleCol);
+  const raw = {};
+  for (let i = 1; i < rows.length; i++) {
+    const sku = String(rows[i][skuIdx] || "").trim();
+    const rule = String(rows[i][ruleIdx] || "").trim();
+    if (sku) raw[sku] = rule;
+  }
+  const parsed = {};
+  let errors = 0;
+  for (const [sku, ruleStr] of Object.entries(raw)) {
+    if (ruleStr) {
+      const rules = parseRule(ruleStr);
+      if (rules.length) parsed[sku] = rules;
+      else { errors++; log("warn", "SKU " + sku + " 的规则解析失败，将跳过: " + ruleStr); }
+    } else parsed[sku] = [];
+  }
+  if (errors) log("warn", "共有 " + errors + " 条规则解析失败");
+  log("info", "成功加载 " + Object.keys(parsed).length + " 条SKU规则");
+  return parsed;
+}
+
+function processOrders(wb, template) {
+  const sheetName = wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  if (rows.length < 2) throw new Error("订单文件为空或只有表头");
+  const headers = rows[0].map(h => String(h).trim());
+  let skuCol = findColumn(headers, ["SKU", "sku", "商品编码"]);
+  let custCol = findColumn(headers, ["定制项", "customization", "定制", "个性化"]);
+  if (skuCol === null) throw new Error("无法识别订单中的SKU列。可用列: " + headers.join(", "));
+  if (custCol === null) throw new Error("无法识别订单中的定制项列。可用列: " + headers.join(", "));
+  const skuIdx = headers.indexOf(skuCol);
+  const custIdx = headers.indexOf(custCol);
+  log("info", "订单列识别: SKU=" + skuCol + ", 定制项=" + custCol);
+  const resultRows = [headers];
+  let modified = 0, skipped = 0, errors = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const row = [...rows[i]];
+    const sku = String(row[skuIdx] || "").trim();
+    const cust = String(row[custIdx] || "");
+    if (!sku) { skipped++; resultRows.push(row); continue; }
+    const rules = template[sku];
+    if (!rules || rules.length === 0) { skipped++; log("debug", "SKU " + sku + ": 无匹配规则，跳过"); resultRows.push(row); continue; }
+    try {
+      const [newSku, newCust] = applyRules(rules, sku, cust);
+      row[skuIdx] = newSku;
+      row[custIdx] = newCust;
+      modified++;
+      log("debug", "SKU " + sku + ": 处理完成");
+    } catch (e) {
+      errors++;
+      log("error", "SKU " + sku + ": 处理异常: " + e.message);
+    }
+    resultRows.push(row);
+  }
+  log("info", "处理完成: 修改 " + modified + " 行, 跳过 " + skipped + " 行, 错误 " + errors + " 行");
+  const newWb = XLSX.utils.book_new();
+  const newWs = XLSX.utils.aoa_to_sheet(resultRows);
+  XLSX.utils.book_append_sheet(newWb, newWs, sheetName);
+  return { wb: newWb, stats: { total: rows.length - 1, modified, skipped, errors, skuCol, custCol } };
+}
+
+async function processAll() {
+  const btn = document.getElementById("btnProcess");
+  const bar = document.getElementById("progressBar");
+  const fill = document.getElementById("progressFill");
+  btn.disabled = true; btn.textContent = "⏳ 处理中...";
+  bar.classList.add("active"); fill.style.width = "30%";
+  document.getElementById("logArea").innerHTML = "";
+  log("info", "=" .repeat(40));
+  log("info", "开始处理...");
+  try {
+    fill.style.width = "40%";
+    log("info", "读取学习模板...");
+    tmplWorkbook = await readFile(tmplFile);
+    const template = loadTemplate(tmplWorkbook);
+    fill.style.width = "60%";
+    log("info", "读取原始订单...");
+    ordWorkbook = await readFile(ordFile);
+    log("info", "加载订单: " + (XLSX.utils.sheet_to_json(ordWorkbook.Sheets[ordWorkbook.SheetNames[0]], { header: 1 }).length - 1) + " 行");
+    fill.style.width = "75%";
+    log("info", "执行规则翻译...");
+    const result = processOrders(ordWorkbook, template);
+    resultWorkbook = result.wb;
+    resultStats = result.stats;
+    fill.style.width = "100%";
+    document.getElementById("resultCard").style.display = "";
+    document.getElementById("resultStats").innerHTML = `
+      <table class="stats-table">
+        <tr><td>总订单数</td><td>${resultStats.total}</td></tr>
+        <tr><td>✅ 已修改</td><td style="color:var(--success)">${resultStats.modified}</td></tr>
+        <tr><td>⏭️ 跳过</td><td style="color:var(--text-secondary)">${resultStats.skipped}</td></tr>
+        <tr><td>❌ 错误</td><td style="color:${resultStats.errors > 0 ? 'var(--error)' : 'var(--text-secondary)'}">${resultStats.errors}</td></tr>
+      </table>`;
+    document.getElementById("btnDownload").disabled = false;
+    log("info", "✓ 处理完成！请点击「下载结果」保存文件");
+  } catch (e) {
+    log("error", "处理失败: " + e.message);
+    fill.style.width = "0%";
+  }
+  btn.disabled = false; btn.textContent = "🚀 开始处理";
+  setTimeout(() => { bar.classList.remove("active"); fill.style.width = "0%"; }, 1500);
+}
+
+function downloadResult() {
+  if (!resultWorkbook) return;
+  XLSX.writeFile(resultWorkbook, "result.xlsx");
+  log("info", "✓ 结果已下载: result.xlsx");
+}
+
+function clearAll() {
+  tmplFile = null; ordFile = null;
+  tmplWorkbook = null; ordWorkbook = null;
+  resultWorkbook = null; resultStats = null;
+  document.getElementById("fileTemplate").value = "";
+  document.getElementById("fileOrders").value = "";
+  document.getElementById("tmplName").textContent = "";
+  document.getElementById("ordName").textContent = "";
+  document.getElementById("btnProcess").disabled = true;
+  document.getElementById("btnDownload").disabled = true;
+  document.getElementById("resultCard").style.display = "none";
+  document.getElementById("progressBar").classList.remove("active");
+  document.getElementById("progressFill").style.width = "0%";
+  document.getElementById("logArea").innerHTML = '<span class="log-info">等待上传文件...</span>';
+}
+
+function toggleGrammar() {
+  alert("规则语法参考：\n\n" +
+    "^[条件] , 后缀       SKU变化\n" +
+    "![条件]              删除行\n" +
+    "=[源]=[目标]         翻译键值\n" +
+    "[位置] ++ [内容]     指定位置插入\n" +
+    "+[内容]              行末添加\n\n" +
+    "优先级: [] > & > |\n" +
+    "执行: ^ → ! → = → ++ → +\n" +
+    "支持 \\ 转义特殊字符");
+}
+</script>
+
+</body>
+</html>

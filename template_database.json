@@ -1,0 +1,146 @@
+{
+  "PG4190": [
+    {
+      "template": "[Name]=名字;",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 1
+    }
+  ],
+  "CAPS251860": [
+    {
+      "template": "^[尺寸:L], -1;",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 1
+    }
+  ],
+  "PL252118": [
+    {
+      "template": "![Font:XYZ-NCT Larkspur];;![Color:Black];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 2
+    }
+  ],
+  "PG4669": [
+    {
+      "template": "[Material]=材质;;^[Brass], -1;;[Silver|Brass]=[银|铜];;[Chain Length]=链长;;[Name]=名字;;[1st Letter Color|2nd Letter Color|3rd Letter Color|4th Letter Color]=[字母颜色1|字母颜色2|字母颜色3|字母颜色4];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 6
+    }
+  ],
+  "PG4793": [
+    {
+      "template": "[01 Amberly Medium]=[字体1];;[Name Color]=字体颜色;;[White]=白色;;[Font]=字体;",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 4
+    }
+  ],
+  "CAPS252843": [
+    {
+      "template": "![Font:XYZ-Mogul Comic Sans];;![Font Color:白色];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 2
+    }
+  ],
+  "CAPS253017": [
+    {
+      "template": "^[款式:彩色印刷], -1;;![Font:Romantis Natalies Script];;[Color]=颜色;;[Lavender|Purple|Light Pink|Malibu|Orange|Misty Lilac|Black|Deep Sea|Navy|Magenta|Red|White]=[薰衣草紫|紫色|浅粉|蓝色|橙色|丁香紫|黑色|青蓝色|海军蓝|品红|红色|白色];;[Color]=[名字颜色];;[Name]=名字;",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 6
+    }
+  ],
+  "CAPS252244": [
+    {
+      "template": "![Font:XYZ2-adelia];;![Color:黑色];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 2
+    }
+  ],
+  "PG4592": [
+    {
+      "template": "^[材质:Stainless Steel]&[生辰花款式:普通款],-4;;^[材质:Stainless Steel]&[生辰花款式:Resin Type],-5;;[Stainless Steel]=不锈钢;;[Standard Type|Resin Type]=[普通款|滴胶款];;[Gold|Rose Gold|Brass]=[黄金|玫瑰金|铜];;![Font:28最新无穷大字体];![电镀颜色:Black];[Name]=名字;",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 8
+    }
+  ],
+  "PG5745": [
+    {
+      "template": "^[Stamp Size:Big Stamp - 0.79''(2cm)]&[Stamp Option:Stamp + Storage Box + a Bottle of Ink],-2;;^[Stamp Size:Big Stamp - 0.79''(2cm)]&[Stamp Option:Stamp + Storage Box],-1;;^[Stamp Size:Small Stamp - 0.59\"(1.5cm)]&[Stamp Option:Stamp + Storage Box + a Bottle of Ink],-5;;[Stamp Size:Big Stamp - 0.79''(2cm)]=[印章尺寸: 大印章];;[Stamp Size:Small Stamp - 0.59\"(1.5cm)]=[印章尺寸: 小印章];;[Black|Blue|Red]=[黑色|蓝色|红色];;[Pattern]=[图案款式];;![Color:Black];;[Name]=[名字];;[Stamp Option]=[套装选项];;[Stamp + Storage Box + a Bottle of Ink]=[印章+铁盒+墨水套装];;[Stamp + Storage Box]=[印章+收纳盒];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 12
+    }
+  ],
+  "CAPS261180": [
+    {
+      "template": "^[Size:31.5\" × 63\"(80cm × 160cm)],-1;[沙滩巾颜色:Red]=[沙滩巾颜色:红色];;[Yellow]=[黄色];;![Font:NFL Vikings];;[Name]=[名字];;[Size]=[尺寸];;[31.5\" × 63\"(80cm × 160cm)]=[80cm × 160cm];;[27.5\" × 55\"(70cm × 140cm)]=[70cm × 140cm];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 8
+    }
+  ],
+  "PG5033": [
+    {
+      "template": "[Bag Color]=[包的颜色];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 1
+    }
+  ],
+  "CAPS230432": [
+    {
+      "template": "^[材质:银],-1;",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 1
+    }
+  ],
+  "CAJJ261526": [
+    {
+      "template": "^[尺寸:20\"x31.5\"],-1;;![Font:Algerian];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 2
+    }
+  ],
+  "CAPS260929": [
+    {
+      "template": "[Badge Reel]=[宠物数量];;[3rd Name]=[名字3];;[3rd Paw Color]=[爪印颜色3];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 3
+    }
+  ],
+  "PL252120": [
+    {
+      "template": "[Yse, I need.]=[是];;![无:XYZ-NCT Larkspur];;![无:无];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 3
+    }
+  ],
+  "CAPS260124": [
+    {
+      "template": "^[款式:Large-White Acrylic],-1;;[Large-White Acrylic]=[大号白色亚克力];;[Pink and Green]=[粉色/绿色];;[字体:Font 1]=[字体:字体1];;[字体:Font 4]=[字体:字体4];;[字体:Font 5]=[字体:字体5];;[Name]=[名字];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 7
+    }
+  ],
+  "PG3408": [
+    {
+      "template": "[No,thanks]=[否];",
+      "source": "自动收录",
+      "added_at": "2026-06-26",
+      "use_count": 1
+    }
+  ]
+}

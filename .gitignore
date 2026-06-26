@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Embedded Python (太大，不纳入版本控制)
+python-embed/
+
+# MinGit (太大，不纳入版本控制)
+mingit/
+
+# Excel 临时文件
+~$*.xlsx
+~$*.xls
+
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+
+# 临时文件
+*.tmp
+*.log
