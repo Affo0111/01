@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("translator")
 
 # ── 版本号（用于 Streamlit Cloud 确认部署版本）──
-__version__ = "2.2.0-ss-fix"
+__version__ = "2.3.0-pyxl"
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -1237,6 +1237,7 @@ def process_orders_preserve_format(orders_path, output_path, template):
     updates = {}  # {excel_row_1based: {col_letter: new_value}}
 
     ac_as_filled = 0  # 统计 AC/AS 填充次数
+    ac_as_map = {}     # {excel_row: {col_letter: value}} — 供 openpyxl 覆写
     for idx, row in df.iterrows():
         excel_row = idx + 2  # +2: 0-based pandas index → 1-based Excel row
 
@@ -1255,9 +1256,13 @@ def process_orders_preserve_format(orders_path, output_path, template):
             if urgent_col_index is not None and urgent_col_index < len(df.columns):
                 raw = row.iloc[urgent_col_index]
                 urgent_val = str(raw).strip().upper() if pd.notna(raw) else ""
-            row_updates[channel_col_letter] = "快递" if urgent_val == "Y" else "经济线"
-            row_updates[delivery_col_letter] = "2" if urgent_val == "Y" else "1"
+            ch_val = "快递" if urgent_val == "Y" else "经济线"
+            dv_val = "2" if urgent_val == "Y" else "1"
+            row_updates[channel_col_letter] = ch_val
+            row_updates[delivery_col_letter] = dv_val
             ac_as_filled += 1
+            ac_as_map.setdefault(excel_row, {})[channel_col_letter] = ch_val
+            ac_as_map.setdefault(excel_row, {})[delivery_col_letter] = dv_val
 
         # ── 翻译逻辑（只对匹配规则的行执行） ──
         customization = str(row[cust_col_name]) if pd.notna(row[cust_col_name]) else ""
@@ -1462,6 +1467,21 @@ def process_orders_preserve_format(orders_path, output_path, template):
         # 无变更，直接复制原文件
         shutil.copy2(orders_path, output_path)
         logger.info("无变更，直接复制原文件")
+
+    # ── 第4步：用 openpyxl 直接覆写 AC/AS 列（确保 Excel 兼容）──
+    if ac_as_map and os.path.exists(output_path):
+        try:
+            _wb = openpyxl.load_workbook(output_path)
+            _ws = _wb.active
+            for _excel_row, _col_map in ac_as_map.items():
+                for _col_letter, _val in _col_map.items():
+                    _cell_ref = f'{_col_letter}{_excel_row}'
+                    _ws[_cell_ref] = _val
+            _wb.save(output_path)
+            _wb.close()
+            logger.info(f"openpyxl 覆写 AC/AS 完成: {len(ac_as_map)} 行")
+        except Exception as _e:
+            logger.warning(f"openpyxl 覆写 AC/AS 失败: {_e}")
 
     logger.info(
         f"处理完成: 修改 {modified_count} 行, 跳过 {skipped_count} 行, 错误 {error_count} 行, AC/AS填充 {ac_as_filled} 行"
