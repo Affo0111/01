@@ -9,6 +9,9 @@ build/
 # Embedded Python (太大，不纳入版本控制)
 python-embed/
 
+# 本地 openpyxl 副本（通过 pip 安装）
+openpyxl-3.1.5/
+
 # MinGit (太大，不纳入版本控制)
 mingit/
 
