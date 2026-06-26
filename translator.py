@@ -32,6 +32,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("translator")
 
+# ── 版本号（用于 Streamlit Cloud 确认部署版本）──
+__version__ = "2.1.0-acas-fix"
+
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║                       第一部分：转义字符处理                               ║
@@ -1417,9 +1420,9 @@ def process_orders_preserve_format(orders_path, output_path, template):
         logger.info("无变更，直接复制原文件")
 
     logger.info(
-        f"处理完成: 修改 {modified_count} 行, 跳过 {skipped_count} 行, 错误 {error_count} 行"
+        f"处理完成: 修改 {modified_count} 行, 跳过 {skipped_count} 行, 错误 {error_count} 行, AC/AS填充 {ac_as_filled} 行"
     )
-    return modified_count, skipped_count, error_count
+    return modified_count, skipped_count, error_count, ac_as_filled
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -1500,7 +1503,7 @@ def main():
     # 3. 处理订单（openpyxl 保留原始格式）
     logger.info("开始处理订单（保留原始格式）...")
     try:
-        modified, skipped, errors = process_orders_preserve_format(
+        modified, skipped, errors, ac_as = process_orders_preserve_format(
             args.orders, args.output, template
         )
     except Exception as e:
@@ -1509,7 +1512,7 @@ def main():
 
     # 4. 输出结果
     logger.info(f"✓ 结果已保存到 {args.output}")
-    logger.info(f"  修改 {modified} 行, 跳过 {skipped} 行, 错误 {errors} 行")
+    logger.info(f"  修改 {modified} 行, 跳过 {skipped} 行, 错误 {errors} 行, AC/AS {ac_as} 行")
 
     logger.info("=" * 60)
     logger.info("处理完成!")

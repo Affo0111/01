@@ -31,6 +31,7 @@ from translator import (
     apply_rules,
     load_template,
     process_orders_preserve_format,
+    __version__,
 )
 
 # ── 页面配置 ────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ st.markdown("""
 
 st.markdown("""
 <div class="main-header">
-    <h1>📊 订单翻译系统</h1>
+    <h1>📊 订单翻译系统 <span style="font-size:0.7rem;opacity:0.7;margin-left:12px;">v""" + __version__ + """</span></h1>
 </div>
 """, unsafe_allow_html=True)
 
@@ -83,7 +84,7 @@ for key, default in [
     ("template_rules", None), ("parse_errors_list", []),
     ("orders_df", None), ("orders_name", ""), ("orders_saved", False),
     ("orders_wb", None), ("orders_path", None),
-    ("result_path", None), ("stat_modified", 0), ("stat_skipped", 0),
+    ("result_path", None), ("stat_modified", 0), ("stat_skipped", 0), ("stat_ac_as", 0),
     ("exec_errors_list", []), ("processing_done", False),
     ("csv_template_text", ""), ("csv_orders_text", ""),
     ("corrector_input", ""), ("corrector_output", ""),
@@ -513,7 +514,7 @@ with col3:
                 if file_size_mb > 10:
                     progress_placeholder.progress(15)
 
-                modified, skipped, error_count = process_orders_preserve_format(
+                modified, skipped, error_count, ac_as_count = process_orders_preserve_format(
                     st.session_state.orders_path,
                     out_path,
                     st.session_state.template_rules,
@@ -525,6 +526,7 @@ with col3:
                 st.session_state.result_path = out_path
                 st.session_state.stat_modified = modified
                 st.session_state.stat_skipped = skipped
+                st.session_state.stat_ac_as = ac_as_count
                 st.session_state.exec_errors_list = (
                     [{"来源": "订单执行", "错误类型": "规则执行异常",
                         "错误原因": f"共有 {error_count} 行处理异常，详见终端日志"}]
@@ -560,6 +562,12 @@ with col3:
                 st.markdown(f'<div class="stat-box"><div class="number" style="color:{c}">{ec}</div><div class="label">❌ 错误</div></div>', unsafe_allow_html=True)
             with sm4:
                 st.markdown(f'<div class="stat-box"><div class="number">{st.session_state.stat_modified + st.session_state.stat_skipped}</div><div class="label">📦 总计</div></div>', unsafe_allow_html=True)
+            # ── AC/AS 诊断信息 ──
+            ac = st.session_state.stat_ac_as
+            ac_color = "#4f46e5" if ac > 0 else "#dc2626"
+            st.markdown(f'<div class="stat-box"><div class="number" style="color:{ac_color}">{ac}</div><div class="label">🔧 AC/AS 填充行数</div></div>', unsafe_allow_html=True)
+            if ac == 0:
+                st.warning("⚠️ AC/AS 自动填充数为 0！请确认：① 订单文件有 K 列(加急)；② 订单行有 SKU；③ 版本号是否为 v2.1.0-acas-fix")
 
             with open(st.session_state.result_path, "rb") as f:
                 result_bytes = f.read()
