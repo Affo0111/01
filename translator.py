@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("translator")
 
 # ── 版本号（用于 Streamlit Cloud 确认部署版本）──
-__version__ = "2.4.1-sortfix"
+__version__ = "2.5.0-styled"
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -1389,6 +1389,46 @@ def process_orders_preserve_format(orders_path, output_path, template):
                     _val_to_idx[_v] = shared_strings.index(_v)
             logger.debug(f"sharedStrings 新增 {len(_val_to_idx)} 条，总计 {len(shared_strings)} 条")
 
+            # 3c-bis. 在 styles.xml 中注入宋体10号居中样式（供 AC/AS 单元格引用）
+            _styles_path = os.path.join(tmpdir, 'xl', 'styles.xml')
+            _ac_as_style_id = None
+            if os.path.exists(_styles_path):
+                try:
+                    _st_tree = ET.parse(_styles_path)
+                    _st_root = _st_tree.getroot()
+                    _target_font_id = None
+                    _fonts_elem = _st_root.find(f'{ns}fonts')
+                    if _fonts_elem is not None:
+                        for _fi, _font_elem in enumerate(_fonts_elem.findall(f'{ns}font')):
+                            _name_elem = _font_elem.find(f'{ns}name')
+                            _sz_elem = _font_elem.find(f'{ns}sz')
+                            if (_name_elem is not None and _sz_elem is not None and
+                                _name_elem.get('val', '') == '宋体' and _sz_elem.get('val', '') == '10'):
+                                _target_font_id = _fi
+                                break
+                    if _target_font_id is None:
+                        _target_font_id = 3
+                    _cxfs = _st_root.find(f'{ns}cellXfs')
+                    if _cxfs is not None:
+                        _count = int(_cxfs.get('count', '0'))
+                        _new_xf = ET.SubElement(_cxfs, f'{ns}xf')
+                        _new_xf.set('numFmtId', '0')
+                        _new_xf.set('fontId', str(_target_font_id))
+                        _new_xf.set('fillId', '0')
+                        _new_xf.set('borderId', '0')
+                        _new_xf.set('xfId', '0')
+                        _new_xf.set('applyFont', '1')
+                        _new_xf.set('applyAlignment', '1')
+                        _align_elem = ET.SubElement(_new_xf, f'{ns}alignment')
+                        _align_elem.set('horizontal', 'center')
+                        _align_elem.set('vertical', 'center')
+                        _cxfs.set('count', str(_count + 1))
+                        _ac_as_style_id = _count
+                        _st_tree.write(_styles_path, xml_declaration=True, encoding='UTF-8')
+                        logger.debug(f"styles.xml 注入样式 s={_ac_as_style_id} (fontId={_target_font_id})")
+                except Exception as _se:
+                    logger.warning(f"styles.xml 注入失败（将不设置格式）: {_se}")
+
             # 3d. 更新目标单元格（使用 sharedStrings 引用，兼容所有 Excel 版本）
             for excel_row, col_updates in sorted(updates.items()):
                 # 获取或创建行元素
@@ -1425,6 +1465,10 @@ def process_orders_preserve_format(orders_path, output_path, template):
 
                     # 写入 shared string 引用（标准 OOXML 方式）
                     c_elem.set('t', 's')
+                    # AC/AS 列设置居中宋体10号样式
+                    if (_ac_as_style_id is not None and
+                        col_letter in (channel_col_letter, delivery_col_letter)):
+                        c_elem.set('s', str(_ac_as_style_id))
                     v_elem = ET.SubElement(c_elem, f'{ns}v')
                     v_elem.text = str(ss_idx)
 
