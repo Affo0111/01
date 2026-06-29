@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("translator")
 
 # ── 版本号（用于 Streamlit Cloud 确认部署版本）──
-__version__ = "2.4.0-purexml"
+__version__ = "2.4.1-sortfix"
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -955,6 +955,15 @@ def _col_idx_to_letter(idx: int) -> str:
     return result
 
 
+def _col_ref_key(ref: str) -> tuple:
+    """Sort key for cell references like 'A1', 'AC2', 'AY50'.
+    Returns (col_letter_length, col_letter, row_number) so that
+    'AC' sorts before 'AY' (both 2-letter, alphabetical order)."""
+    col = ''.join(ch for ch in ref if ch.isalpha())
+    row = int(''.join(ch for ch in ref if ch.isdigit())) if any(ch.isdigit() for ch in ref) else 0
+    return (len(col), col, row)
+
+
 def _update_xlsx_cells_lightweight(
     src_path: str,
     dst_path: str,
@@ -1418,6 +1427,13 @@ def process_orders_preserve_format(orders_path, output_path, template):
                     c_elem.set('t', 's')
                     v_elem = ET.SubElement(c_elem, f'{ns}v')
                     v_elem.text = str(ss_idx)
+
+                # 修复5：将本行所有 <c> 元素按列字母排序（Excel 要求升序）
+                _cells = [(c.get('r', ''), c) for c in row_elem.findall(f'{ns}c')]
+                _cells.sort(key=lambda x: _col_ref_key(x[0]))
+                for _i, (_ref, _c) in enumerate(_cells):
+                    row_elem.remove(_c)
+                    row_elem.insert(_i, _c)
 
             # 写回修改后的 sheet1.xml
             tree.write(sheet_path, xml_declaration=True, encoding='UTF-8')
