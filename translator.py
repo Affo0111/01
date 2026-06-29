@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("translator")
 
 # ── 版本号（用于 Streamlit Cloud 确认部署版本）──
-__version__ = "2.3.1-fmt"
+__version__ = "2.3.2-rtfix"
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -1348,11 +1348,22 @@ def process_orders_preserve_format(orders_path, output_path, template):
                 _ss_root = _ss_tree.getroot()
                 shared_count_attr = _ss_root.get('count', '0')
                 for _si in _ss_root.findall(f'{ns}si'):
+                    # 优先读取 <t> 简单文本；若无则处理 <r> 富文本
                     _t_elem = _si.find(f'{ns}t')
                     if _t_elem is not None and _t_elem.text is not None:
                         shared_strings.append(_t_elem.text)
                     else:
-                        shared_strings.append('')
+                        # 富文本：提取所有 <r><t> 的文本拼接
+                        _r_elems = _si.findall(f'{ns}r')
+                        if _r_elems:
+                            _parts = []
+                            for _r in _r_elems:
+                                _rt = _r.find(f'{ns}t')
+                                if _rt is not None and _rt.text:
+                                    _parts.append(_rt.text)
+                            shared_strings.append(''.join(_parts))
+                        else:
+                            shared_strings.append('')
                 logger.debug(f"sharedStrings 现有 {len(shared_strings)} 条")
 
             # 收集所有需要写入的新值，去重后分配索引
