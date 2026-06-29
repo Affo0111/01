@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("translator")
 
 # ── 版本号（用于 Streamlit Cloud 确认部署版本）──
-__version__ = "2.3.2-rtfix"
+__version__ = "2.4.0-purexml"
 
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -1479,26 +1479,11 @@ def process_orders_preserve_format(orders_path, output_path, template):
         shutil.copy2(orders_path, output_path)
         logger.info("无变更，直接复制原文件")
 
-    # ── 第4步：用 openpyxl 直接覆写 AC/AS 列（确保 Excel 兼容 + 格式）──
-    if ac_as_map and os.path.exists(output_path):
-        try:
-            from openpyxl.styles import Font, Alignment
-            _wb = openpyxl.load_workbook(output_path)
-            _ws = _wb.active
-            _font = Font(name='宋体', size=12)
-            _align = Alignment(horizontal='center', vertical='center')
-            for _excel_row, _col_map in ac_as_map.items():
-                for _col_letter, _val in _col_map.items():
-                    _cell_ref = f'{_col_letter}{_excel_row}'
-                    _cell = _ws[_cell_ref]
-                    _cell.value = _val
-                    _cell.font = _font
-                    _cell.alignment = _align
-            _wb.save(output_path)
-            _wb.close()
-            logger.info(f"openpyxl 覆写 AC/AS 完成: {len(ac_as_map)} 行")
-        except Exception as _e:
-            logger.warning(f"openpyxl 覆写 AC/AS 失败: {_e}")
+    # ── 第4步（已禁用）：不再使用 openpyxl 覆写，纯 XML sharedStrings 方式写入 AC/AS ──
+    # AC/AS 列已在上面的 XML 修改步骤中通过 sharedStrings 写入，无需额外处理。
+    # 如需恢复 openpyxl 方式，取消下方注释即可。
+    # if ac_as_map and os.path.exists(output_path):
+    #     ... (v2.3.x 的 openpyxl 覆写代码)
 
     logger.info(
         f"处理完成: 修改 {modified_count} 行, 跳过 {skipped_count} 行, 错误 {error_count} 行, AC/AS填充 {ac_as_filled} 行"
