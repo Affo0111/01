@@ -889,15 +889,14 @@ with st.expander("✏️ 翻译模板自动更正工具（点击展开）", expa
 
 def _generate_rules(before_text: str, after_text: str) -> str:
     """
-    按行号逐行配对，对比翻译前/后文本生成规则。
+    锚点分段 + 偏移搜索配对。
 
-    逻辑：
-    1. 拆分行（支持 <br> 和 \n）
-    2. 按索引逐行配对：
-       - 完全相同 → 跳过
-       - 不同 → [原文行]=[译文行]
-    3. 原文行数 > 译文行数 → 多余行生成 ![多余行]
-    4. 译文行数 > 原文行数 → 多余行生成 +[多余行]
+    1. 完全相同且唯一的行作为锚点，将原文/译文分段
+    2. 段内尝试不同偏移配对，选总相似度最高的：
+       - 配对行 → [原文行]=[译文行]
+       - 原文多余 → ![原文]
+       - 译文多余 → +[译文]
+    3. 无锚点时回退到逐行配对
     """
     import re as _re
 
@@ -905,27 +904,102 @@ def _generate_rules(before_text: str, after_text: str) -> str:
         text = _re.sub(r'<br\s*/?\s*>', '\n', text, flags=_re.IGNORECASE)
         return [ln.strip() for ln in text.replace('\r\n', '\n').split('\n') if ln.strip()]
 
+    def _similarity(a: str, b: str) -> float:
+        """两行相似度：键名相同 +0.5，值相同 +0.5"""
+        score = 0.0
+        ak = a.split(':', 1)[0].strip() if ':' in a else a
+        bk = b.split(':', 1)[0].strip() if ':' in b else b
+        av = a.split(':', 1)[1].strip() if ':' in a else ''
+        bv = b.split(':', 1)[1].strip() if ':' in b else ''
+        if ak == bk:
+            score += 0.5
+        if av == bv:
+            score += 0.5
+        # 额外奖励：值非空且相同
+        if av and bv and av == bv:
+            score += 0.3
+        return score
+
+    def _pair_segment(b_seg: list, a_seg: list):
+        """段内配对：尝试所有偏移，选最佳"""
+        lb, la = len(b_seg), len(a_seg)
+        if lb == 0 and la == 0:
+            return []
+        if lb == 0:
+            return [(None, aln, '+') for aln in a_seg]
+        if la == 0:
+            return [(bln, None, '!') for bln in b_seg]
+        if lb == la:
+            # 等长直接配对
+            return [(b_seg[i], a_seg[i], '=') for i in range(lb) if b_seg[i] != a_seg[i]]
+
+        # 大小不同：尝试偏移
+        best_offset = 0
+        best_score = -1
+        max_offset = abs(lb - la)
+        for offset in range(max_offset + 1):
+            score = 0.0
+            if lb > la:
+                # 原文多余，跳过前 offset 行
+                for i in range(la):
+                    score += _similarity(b_seg[offset + i], a_seg[i])
+            else:
+                # 译文多余，跳过前 offset 行
+                for i in range(lb):
+                    score += _similarity(b_seg[i], a_seg[offset + i])
+            if score > best_score:
+                best_score = score
+                best_offset = offset
+
+        result = []
+        if lb > la:
+            # 原文多余：前 best_offset 行删除，剩余配对
+            for i in range(best_offset):
+                result.append((b_seg[i], None, '!'))
+            for i in range(la):
+                if b_seg[best_offset + i] != a_seg[i]:
+                    result.append((b_seg[best_offset + i], a_seg[i], '='))
+        else:
+            # 译文多余：前 best_offset 行新增，剩余配对
+            for i in range(best_offset):
+                result.append((None, a_seg[i], '+'))
+            for i in range(lb):
+                if b_seg[i] != a_seg[best_offset + i]:
+                    result.append((b_seg[i], a_seg[best_offset + i], '='))
+        return result
+
     before_lines = _split(before_text)
     after_lines = _split(after_text)
 
-    min_len = min(len(before_lines), len(after_lines))
+    # ── 找锚点（完全相同且唯一）──
+    b_cnt = {}; a_cnt = {}
+    for ln in before_lines: b_cnt[ln] = b_cnt.get(ln, 0) + 1
+    for ln in after_lines:  a_cnt[ln] = a_cnt.get(ln, 0) + 1
+    anchors = {ln for ln in b_cnt if ln in a_cnt and b_cnt[ln] == 1 and a_cnt[ln] == 1}
+    b_ap = [i for i, ln in enumerate(before_lines) if ln in anchors]
+    a_ap = [i for i, ln in enumerate(after_lines) if ln in anchors]
+
+    # ── 无可靠锚点 → 整段偏移搜索 ──
+    if not b_ap or not a_ap or b_ap != a_ap:
+        pairs = _pair_segment(before_lines, after_lines)
+    else:
+        # ── 有锚点 → 分段 ──
+        pairs = []
+        prev_b = 0; prev_a = 0
+        for bi, ai in zip(b_ap, a_ap):
+            pairs.extend(_pair_segment(before_lines[prev_b:bi], after_lines[prev_a:ai]))
+            prev_b = bi + 1; prev_a = ai + 1
+        pairs.extend(_pair_segment(before_lines[prev_b:], after_lines[prev_a:]))
+
+    # ── 生成规则 ──
     rules = []
-
-    # 逐行配对
-    for i in range(min_len):
-        b = before_lines[i]
-        a = after_lines[i]
-        if b != a:
-            rules.append(f"[{b}]=[{a}]")
-
-    # 原文多余 → 删除
-    for i in range(min_len, len(before_lines)):
-        rules.append(f"![{before_lines[i]}]")
-
-    # 译文多余 → 新增
-    for i in range(min_len, len(after_lines)):
-        rules.append(f"+[{after_lines[i]}]")
-
+    for b_ln, a_ln, op in pairs:
+        if op == '=':
+            rules.append(f"[{b_ln}]=[{a_ln}]")
+        elif op == '!':
+            rules.append(f"![{b_ln}]")
+        elif op == '+':
+            rules.append(f"+[{a_ln}]")
     return '\n'.join(f"{r};" for r in rules)
 
 
