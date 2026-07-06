@@ -921,46 +921,39 @@ def _generate_rules(before_text: str, after_text: str) -> str:
         return score
 
     def _pair_segment(b_seg: list, a_seg: list):
-        """段内配对：尝试所有偏移，选最佳"""
+        """段内配对：等长直接配对，不等长尝试所有偏移选最佳相似度"""
         lb, la = len(b_seg), len(a_seg)
-        if lb == 0 and la == 0:
-            return []
         if lb == 0:
             return [(None, aln, '+') for aln in a_seg]
         if la == 0:
             return [(bln, None, '!') for bln in b_seg]
         if lb == la:
-            # 等长直接配对
             return [(b_seg[i], a_seg[i], '=') for i in range(lb) if b_seg[i] != a_seg[i]]
 
-        # 大小不同：尝试偏移
         best_offset = 0
-        best_score = -1
-        max_offset = abs(lb - la)
-        for offset in range(max_offset + 1):
+        best_score = -1.0
+        longer, shorter = (b_seg, a_seg) if lb > la else (a_seg, b_seg)
+        is_before_longer = lb > la
+
+        for offset in range(len(longer) - len(shorter) + 1):
             score = 0.0
-            if lb > la:
-                # 原文多余，跳过前 offset 行
-                for i in range(la):
-                    score += _similarity(b_seg[offset + i], a_seg[i])
-            else:
-                # 译文多余，跳过前 offset 行
-                for i in range(lb):
-                    score += _similarity(b_seg[i], a_seg[offset + i])
+            for i in range(len(shorter)):
+                if is_before_longer:
+                    score += _similarity(longer[offset + i], shorter[i])
+                else:
+                    score += _similarity(shorter[i], longer[offset + i])
             if score > best_score:
                 best_score = score
                 best_offset = offset
 
         result = []
-        if lb > la:
-            # 原文多余：前 best_offset 行删除，剩余配对
+        if is_before_longer:
             for i in range(best_offset):
                 result.append((b_seg[i], None, '!'))
             for i in range(la):
                 if b_seg[best_offset + i] != a_seg[i]:
                     result.append((b_seg[best_offset + i], a_seg[i], '='))
         else:
-            # 译文多余：前 best_offset 行新增，剩余配对
             for i in range(best_offset):
                 result.append((None, a_seg[i], '+'))
             for i in range(lb):
@@ -979,14 +972,18 @@ def _generate_rules(before_text: str, after_text: str) -> str:
     b_ap = [i for i, ln in enumerate(before_lines) if ln in anchors]
     a_ap = [i for i, ln in enumerate(after_lines) if ln in anchors]
 
-    # ── 无可靠锚点 → 整段偏移搜索 ──
-    if not b_ap or not a_ap or b_ap != a_ap:
+    # ── 无锚点 → 整段偏移搜索 ──
+    if not b_ap or not a_ap:
         pairs = _pair_segment(before_lines, after_lines)
     else:
-        # ── 有锚点 → 分段 ──
+        # ── 有锚点 → 按锚点内容匹配，各自计算段边界 ──
+        # 即使锚点位置不同，只要内容相同就分段
         pairs = []
         prev_b = 0; prev_a = 0
         for bi, ai in zip(b_ap, a_ap):
+            if before_lines[bi] != after_lines[ai]:
+                # 内容不匹配，跳过这个锚点
+                continue
             pairs.extend(_pair_segment(before_lines[prev_b:bi], after_lines[prev_a:ai]))
             prev_b = bi + 1; prev_a = ai + 1
         pairs.extend(_pair_segment(before_lines[prev_b:], after_lines[prev_a:]))
