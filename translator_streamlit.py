@@ -887,28 +887,17 @@ with st.expander("✏️ 翻译模板自动更正工具（点击展开）", expa
 # ╚══════════════════════════════════════════════════════════════════╝
 
 
-def _extract_key(line: str) -> str:
-    """从一行定制项中提取键名。
-    如果包含 `:`，取冒号前部分；否则整行作为键名。"""
-    line = line.strip()
-    if ':' in line:
-        return line.split(':', 1)[0].strip()
-    return line
-
-
 def _generate_rules(before_text: str, after_text: str) -> str:
     """
-    按键名匹配，对比翻译前/后文本生成规则。
+    按行号逐行配对，对比翻译前/后文本生成规则。
 
     逻辑：
-    1. 原文/译文分别解析为列表 [{key, raw}]，保持顺序
-    2. 译文建立键名→完整行的映射（多个同键取最后一个）
-    3. 遍历原文：
-       - 键名在译文中有匹配、行相同 → 跳过
-       - 键名在译文中有匹配、行不同 → [原文行]=[译文行]
-       - 键名在译文中无匹配 → ![原文行]
-    4. 遍历译文：
-       - 键名在原文中无匹配 → +[译文行]
+    1. 拆分行（支持 <br> 和 \n）
+    2. 按索引逐行配对：
+       - 完全相同 → 跳过
+       - 不同 → [原文行]=[译文行]
+    3. 原文行数 > 译文行数 → 多余行生成 ![多余行]
+    4. 译文行数 > 原文行数 → 多余行生成 +[多余行]
     """
     import re as _re
 
@@ -919,31 +908,23 @@ def _generate_rules(before_text: str, after_text: str) -> str:
     before_lines = _split(before_text)
     after_lines = _split(after_text)
 
-    # 原文：[(key, raw_line)] 保持顺序
-    before_items = [(_extract_key(ln), ln) for ln in before_lines]
-    # 译文：[(key, raw_line)] + 键名→行映射
-    after_items = [(_extract_key(ln), ln) for ln in after_lines]
-    after_key_to_line = {}
-    for k, raw in after_items:
-        after_key_to_line[k] = raw  # 同键取最后一个
-
-    before_keys = {k for k, _ in before_items}
-
+    min_len = min(len(before_lines), len(after_lines))
     rules = []
 
-    # 3. 遍历原文
-    for b_key, b_raw in before_items:
-        if b_key in after_key_to_line:
-            a_raw = after_key_to_line[b_key]
-            if b_raw != a_raw:
-                rules.append(f"[{b_raw}]=[{a_raw}]")
-        else:
-            rules.append(f"![{b_raw}]")
+    # 逐行配对
+    for i in range(min_len):
+        b = before_lines[i]
+        a = after_lines[i]
+        if b != a:
+            rules.append(f"[{b}]=[{a}]")
 
-    # 4. 遍历译文（新增行）
-    for a_key, a_raw in after_items:
-        if a_key not in before_keys:
-            rules.append(f"+[{a_raw}]")
+    # 原文多余 → 删除
+    for i in range(min_len, len(before_lines)):
+        rules.append(f"![{before_lines[i]}]")
+
+    # 译文多余 → 新增
+    for i in range(min_len, len(after_lines)):
+        rules.append(f"+[{after_lines[i]}]")
 
     return '\n'.join(f"{r};" for r in rules)
 
