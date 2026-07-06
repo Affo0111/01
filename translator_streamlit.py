@@ -89,6 +89,7 @@ for key, default in [
     ("csv_template_text", ""), ("csv_orders_text", ""),
     ("corrector_input", ""), ("corrector_output", ""),
     ("corrector_check_lines", []), ("corrector_has_run", False),
+    ("generator_before", ""), ("generator_after", ""), ("generator_rules", ""),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -879,6 +880,232 @@ with st.expander("✏️ 翻译模板自动更正工具（点击展开）", expa
                 st.code(corrected_text, language=None)
         elif check_lines:
             st.info("请点击「🔧 自动更正」按钮来修复以上问题")
+
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  智能规则生成器：从翻译前后对比反推规则                              ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+
+def _parse_line(line: str) -> tuple:
+    """解析一行定制项，返回 (key, value, raw)。
+    无冒号时 key 为 None，value 为整行内容。"""
+    line = line.strip()
+    if ':' in line:
+        k, v = line.split(':', 1)
+        return k.strip(), v.strip(), line
+    return None, line, line
+
+
+def _generate_rules(before_text: str, after_text: str) -> str:
+    """
+    对比翻译前/后文本，生成规则字符串。
+
+    返回格式：每条子规则以 `;` 结尾并换行，使用隐式 `=` 格式。
+    """
+    # 拆分行（支持 <br> 和 \n）
+    import re as _re
+    def _split_lines(text: str) -> list:
+        text = _re.sub(r'<br\s*/?\s*>', '\n', text, flags=_re.IGNORECASE)
+        return [ln.strip() for ln in text.replace('\r\n', '\n').split('\n') if ln.strip()]
+
+    before_lines = _split_lines(before_text)
+    after_lines = _split_lines(after_text)
+
+    # 解析为结构化数据
+    before_parsed = [_parse_line(ln) for ln in before_lines]
+    after_parsed = [_parse_line(ln) for ln in after_lines]
+
+    # 建立映射：键→原始行，值→原始行（用于匹配）
+    before_key_map = {}   # key → list of (idx, raw)
+    before_val_map = {}   # value → list of (idx, raw)
+    for i, (k, v, raw) in enumerate(before_parsed):
+        if k is not None:
+            before_key_map.setdefault(k, []).append((i, raw, v))
+        before_val_map.setdefault(v, []).append((i, raw))
+
+    after_key_map = {}
+    after_val_map = {}
+    after_raw_set = set()
+    for i, (k, v, raw) in enumerate(after_parsed):
+        if k is not None:
+            after_key_map.setdefault(k, []).append((i, raw, v))
+        after_val_map.setdefault(v, []).append((i, raw))
+        after_raw_set.add(raw)
+
+    before_raw_set = {raw for _, _, raw in before_parsed}
+
+    # 收集各类变化
+    key_changes = []     # [(old_key, new_key, count)]
+    value_changes = []   # [(key, old_val, new_val, count)]
+    kv_changes = []      # [(old_key, old_val, new_key, new_val, count)]
+    deletions = []       # [raw_line]
+    additions = []       # [raw_line]
+
+    # 用于跟踪已匹配的行
+    matched_before = set()
+    matched_after = set()
+
+    # ── 第1轮：键对键匹配（同一键名匹配）──
+    for b_key, b_items in before_key_map.items():
+        if b_key in after_key_map:
+            a_items = after_key_map[b_key]
+            for bi, b_raw, b_val in b_items:
+                if bi in matched_before:
+                    continue
+                # 找 after 中同键但值不同的行
+                for ai, a_raw, a_val in a_items:
+                    if ai in matched_after:
+                        continue
+                    if b_val != a_val:
+                        value_changes.append((b_key, b_val, a_val))
+                        matched_before.add(bi)
+                        matched_after.add(ai)
+                        break
+
+    # ── 第2轮：值匹配（同值但键不同 → 键名变化）──
+    for b_i, (b_key, b_val, b_raw) in enumerate(before_parsed):
+        if b_i in matched_before or b_key is None:
+            continue
+        for a_i, (a_key, a_val, a_raw) in enumerate(after_parsed):
+            if a_i in matched_after or a_key is None:
+                continue
+            if b_val == a_val and b_key != a_key:
+                key_changes.append((b_key, a_key))
+                matched_before.add(b_i)
+                matched_after.add(a_i)
+                break
+
+    # ── 第3轮：键值对完全变化（键不同且值也不同，但可能在语义上对应）──
+    for b_i, (b_key, b_val, b_raw) in enumerate(before_parsed):
+        if b_i in matched_before or b_key is None:
+            continue
+        for a_i, (a_key, a_val, a_raw) in enumerate(after_parsed):
+            if a_i in matched_after or a_key is None:
+                continue
+            # 如果键不同值也不同，但两者都是键值对格式
+            if b_key != a_key and b_val != a_val:
+                kv_changes.append((b_key, b_val, a_key, a_val))
+                matched_before.add(b_i)
+                matched_after.add(a_i)
+                break
+
+    # ── 第4轮：删除行（before 中有，after 中没有）──
+    for i, (k, v, raw) in enumerate(before_parsed):
+        if i not in matched_before:
+            # 检查整行是否在 after 中出现
+            if raw not in after_raw_set:
+                deletions.append(raw)
+
+    # ── 第5轮：新增行（after 中有，before 中没有）──
+    for i, (k, v, raw) in enumerate(after_parsed):
+        if i not in matched_after:
+            if raw not in before_raw_set:
+                additions.append(raw)
+
+    # ── 智能合并：同键的值变化用 | 合并 ──
+    # value_changes: [(key, old_val, new_val)]
+    # 按 key 分组
+    vc_by_key = {}
+    for k, ov, nv in value_changes:
+        vc_by_key.setdefault(k, []).append((ov, nv))
+
+    rules = []
+
+    # 键名变化 → [old_key]=[new_key]
+    for old_k, new_k in key_changes:
+        rules.append(f"[{old_k}]=[{new_k}]")
+
+    # 值变化（合并）
+    for k, pairs in vc_by_key.items():
+        if len(pairs) == 1:
+            ov, nv = pairs[0]
+            rules.append(f"[{k}:{ov}]=[{k}:{nv}]")
+        else:
+            old_vals = '|'.join(ov for ov, _ in pairs)
+            new_vals = '|'.join(nv for _, nv in pairs)
+            rules.append(f"[{k}:{old_vals}]=[{k}:{new_vals}]")
+
+    # 键值对变化
+    for ok, ov, nk, nv in kv_changes:
+        rules.append(f"[{ok}:{ov}]=[{nk}:{nv}]")
+
+    # 删除行
+    for raw in deletions:
+        rules.append(f"![{raw}]")
+
+    # 新增行
+    for raw in additions:
+        rules.append(f"+[{raw}]")
+
+    # 去重 + 保留顺序
+    seen = set()
+    unique_rules = []
+    for r in rules:
+        if r not in seen:
+            seen.add(r)
+            unique_rules.append(r)
+
+    # 每条规则一行，以 ; 结尾
+    return '\n'.join(f"{r};" for r in unique_rules)
+
+
+# ── UI：智能规则生成器 ──────────────────────────────────────────
+with st.expander("🧠 智能规则生成器（从样例反推规则）", expanded=False):
+    st.markdown("无需学习规则语法，提供「翻译前」和「翻译后」的定制项对比，自动生成规则。")
+
+    col_a, col_b = st.columns(2, gap="medium")
+    with col_a:
+        st.markdown("**📝 翻译前（原始数据）**")
+        before_input = st.text_area(
+            "翻译前",
+            value=st.session_state.generator_before,
+            height=180,
+            key="gen_before",
+            label_visibility="collapsed",
+            placeholder="Name:John\nSize:L\nColor:Red\n无:XYZ-NCT Larkspur",
+        )
+        st.session_state.generator_before = before_input
+
+    with col_b:
+        st.markdown("**📝 翻译后（目标数据）**")
+        after_input = st.text_area(
+            "翻译后",
+            value=st.session_state.generator_after,
+            height=180,
+            key="gen_after",
+            label_visibility="collapsed",
+            placeholder="名字:John\n尺寸:L\n颜色:红色",
+        )
+        st.session_state.generator_after = after_input
+
+    c1, c2 = st.columns([1, 1], gap="small")
+    with c1:
+        btn_generate = st.button("🔍 对比生成规则", use_container_width=True, key="btn_gen_rules")
+    with c2:
+        btn_copy_gen = st.button("📋 复制规则", use_container_width=True, key="btn_copy_gen")
+
+    if btn_generate:
+        if not before_input.strip():
+            st.warning("请先粘贴「翻译前」的定制项数据")
+        elif not after_input.strip():
+            st.warning("请先粘贴「翻译后」的定制项数据")
+        else:
+            generated = _generate_rules(before_input, after_input)
+            st.session_state.generator_rules = generated
+
+    if btn_copy_gen:
+        rules = st.session_state.generator_rules
+        if not rules or not rules.strip():
+            st.warning("没有可复制的规则，请先点击「🔍 对比生成规则」")
+        else:
+            st.code(rules, language=None)
+            st.toast("📋 点击代码块右上角的复制图标即可复制")
+
+    # 显示生成的规则
+    if st.session_state.generator_rules:
+        st.markdown("**生成的规则：**")
+        st.code(st.session_state.generator_rules, language=None)
 
 
 # ╔══════════════════════════════════════════════════════════════════╗
