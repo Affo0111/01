@@ -1286,7 +1286,7 @@ def process_orders_preserve_format(orders_path, output_path, template):
             if new_sku != sku or new_cust != customization:
                 row_updates[sku_col_letter] = new_sku
                 row_updates[cust_col_letter] = new_cust
-            modified_count += 1
+                modified_count += 1
         except Exception as e:
             logger.error(f"SKU {sku!r}: 规则执行异常: {e}")
             error_count += 1

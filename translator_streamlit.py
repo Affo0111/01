@@ -456,8 +456,6 @@ with col2:
                 st.warning("请先粘贴数据")
 
     if st.session_state.orders_saved:
-        sku_cn = _find_column(st.session_state.orders_df, ["SKU", "sku", "商品编码"])
-        cust_cn = _find_column(st.session_state.orders_df, ["定制项", "customization", "定制", "个性化"])
         st.markdown(
             f'<span class="saved-badge">✅ {st.session_state.orders_name}'
             f'（{len(st.session_state.orders_df)} 行）</span>',
@@ -568,7 +566,7 @@ with col3:
             ac_color = "#4f46e5" if ac > 0 else "#dc2626"
             st.markdown(f'<div class="stat-box"><div class="number" style="color:{ac_color}">{ac}</div><div class="label">🔧 AC/AS 填充行数</div></div>', unsafe_allow_html=True)
             if ac == 0:
-                st.warning("⚠️ AC/AS 自动填充数为 0！请确认：① 订单文件有 K 列(加急)；② 订单行有 SKU；③ 版本号是否为 v2.1.0-acas-fix")
+                st.warning("⚠️ AC/AS 自动填充数为 0！请确认：① 订单文件有 K 列(加急)；② 订单行有 SKU")
 
             with open(st.session_state.result_path, "rb") as f:
                 result_bytes = f.read()
@@ -653,6 +651,114 @@ with st.expander("📖 翻译规则说明（点击展开）", expanded=False):
 5. **`+`** 行末添加（最后）
 ### 🧩 优先级
 `[ ]` > `&` > `|`
+""")
+
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║         规则详细示例                                              ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+with st.expander("📌 规则详细示例（点击展开）", expanded=False):
+    st.markdown("每个操作符的具体用法和真实场景示例。")
+
+    with st.expander("^ SKU变化规则", expanded=True):
+        st.markdown("""**单独使用**
+| 项目 | 内容 |
+|------|------|
+| SKU | CAPS251860 |
+| 定制项原文 | `Style:Dinosaur<br>Name:Tom<br>Size:L` |
+| 翻译模板 | `^[尺寸:L] , -1` |
+| 翻译结果 | SKU 从 `CAPS251860` 变为 `CAPS251860-1` |
+| 符号说明 | `^` 表示SKU变化，`[尺寸:L]` 是匹配条件，`, -1` 是要添加的后缀 |
+
+**联动使用（`^` + `&`）**
+| 项目 | 内容 |
+|------|------|
+| SKU | CAPS251860 |
+| 定制项原文 | `Style:Dinosaur<br>Size:L<br>Color:Red` |
+| 翻译模板 | `^[尺寸:L]&[颜色:红色] , -2` |
+| 翻译结果 | 同时包含"尺寸:L"和"颜色:红色"时，SKU 添加 `-2` |
+| 符号说明 | `&` 表示"与"，所有条件必须同时满足 |
+
+**联动使用（`^` + `|`）**
+| 项目 | 内容 |
+|------|------|
+| SKU | CAPS251860 |
+| 定制项原文 | `Style:Dinosaur<br>Size:L` |
+| 翻译模板 | `^[尺寸:L|尺寸:XL] , -1` |
+| 翻译结果 | 包含"尺寸:L"或"尺寸:XL"时，SKU 添加 `-1` |
+| 符号说明 | `|` 表示"或"，满足任一条件即可 |
+""")
+
+    with st.expander("! 删除规则", expanded=True):
+        st.markdown("""**单独使用**
+| 项目 | 内容 |
+|------|------|
+| SKU | PL252118 |
+| 定制项原文 | `字母款式:款式1<br>字母:A<br>无:XYZ-NCT Larkspur<br>无:Black<br>名字:Tom` |
+| 翻译模板 | `![无:XYZ-NCT Larkspur]` |
+| 翻译结果 | 删除"无:XYZ-NCT Larkspur"这一行 |
+| 符号说明 | `!` 表示删除，`[]` 内是要删除的完整行内容 |
+""")
+
+    with st.expander("= 翻译规则（隐式）", expanded=True):
+        st.markdown("""**单独使用（键名翻译）**
+| 项目 | 内容 |
+|------|------|
+| SKU | PG5499 |
+| 定制项原文 | `Bag Color:Black<br>Birth Flower:May<br>Name:Anna` |
+| 翻译模板 | `[Bag Color]=[包的颜色]` |
+| 翻译结果 | `Bag Color:Black` 变为 `包的颜色:Black`（只改键名，保留值） |
+| 符号说明 | `[键名]=[新键名]` 只翻译键名，保留原值 |
+
+**单独使用（键值对翻译）**
+| 项目 | 内容 |
+|------|------|
+| SKU | PG4592 |
+| 定制项原文 | `Color:Red` |
+| 翻译模板 | `[Color:Red]=[颜色:红色]` |
+| 翻译结果 | `Color:Red` 变为 `颜色:红色`（完整替换键值对） |
+| 符号说明 | `[键:值]=[新键:新值]` 完整替换键值对 |
+
+**联动使用（`=` + `|` 并列映射）**
+| 项目 | 内容 |
+|------|------|
+| SKU | PG4669 |
+| 定制项原文 | `Silver` |
+| 翻译模板 | `[Silver|Brass]=[银|铜]` |
+| 翻译结果 | `Silver` 变为 `银`，`Brass` 变为 `铜` |
+| 符号说明 | `|` 在 `[]` 内部作为值分隔符，实现并列映射 |
+
+**联动使用（`=` + `;` 组合）**
+| 项目 | 内容 |
+|------|------|
+| SKU | PG5499 |
+| 定制项原文 | `Bag Color:Black<br>Birth Flower:May<br>Name:Anna` |
+| 翻译模板 | `[Bag Color]=[包的颜色];[Birth Flower]=[生辰花];[Name]=[名字]` |
+| 翻译结果 | 三个键名全部翻译成中文 |
+| 符号说明 | `;` 分隔多条翻译规则，依次执行 |
+""")
+
+    with st.expander("++ 指定位置添加规则", expanded=True):
+        st.markdown("""**单独使用**
+| 项目 | 内容 |
+|------|------|
+| SKU | 示例SKU |
+| 定制项原文 | `前面有云:白云<br>后面有云:乌云` |
+| 翻译模板 | `[前面有云:白云] ++ [背后有云:白云]` |
+| 翻译结果 | 在"前面有云:白云"行的下方插入"背后有云:白云" |
+| 符号说明 | `[位置条件] ++ [新增行]`，`++` 前后需有空格 |
+""")
+
+    with st.expander("+ 行末添加规则", expanded=True):
+        st.markdown("""**单独使用**
+| 项目 | 内容 |
+|------|------|
+| SKU | 示例SKU |
+| 定制项原文 | `名字:Tom` |
+| 翻译模板 | `+[注意:加急]` |
+| 翻译结果 | 在定制项末尾添加"注意:加急" |
+| 符号说明 | `+[新增行]` 添加在定制项末尾 |
 """)
 
 
