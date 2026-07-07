@@ -813,6 +813,7 @@ def _find_column(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
     """
     在DataFrame中查找列名（不区分大小写）。
     返回第一个匹配的列名，找不到返回 None。
+    支持多行表头：匹配每列第一行文本（\\n 之前的部分）。
     """
     # 精确匹配优先
     for col in df.columns:
@@ -823,6 +824,14 @@ def _find_column(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
     for col in df.columns:
         for candidate in candidates:
             if col.lower() == candidate.lower():
+                return col
+    # 多行表头匹配：取列名第一行（\\n 之前）进行匹配
+    for col in df.columns:
+        col_first_line = str(col).split("\n")[0].strip()
+        for candidate in candidates:
+            if col_first_line == candidate:
+                return col
+            if col_first_line.lower() == candidate.lower():
                 return col
     return None
 
@@ -1220,8 +1229,8 @@ def process_orders_preserve_format(orders_path, output_path, template):
         logger.info(f"加急列识别: 未找到列名，使用固定索引 {urgent_col_index}")
 
     # ── AC/AS 列选择：优先按列名匹配，找不到再用固定列号 ──
-    channel_col_name = _find_column(df, ["物流渠道", "运输方式", "物流", "渠道"])
-    delivery_col_name = _find_column(df, ["时效", "配送时效", "时效类型"])
+    channel_col_name = _find_column(df, ["物流渠道", "运输方式", "物流", "渠道", "买家选择渠道类型"])
+    delivery_col_name = _find_column(df, ["时效", "配送时效", "时效类型", "购买配送服务"])
 
     if channel_col_name:
         channel_col_letter = _col_idx_to_letter(list(df.columns).index(channel_col_name) + 1)
