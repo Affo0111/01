@@ -618,8 +618,7 @@ with col4:
 st.divider()
 with st.expander("📖 翻译规则说明（点击展开）", expanded=False):
     st.warning(
-        "**重要提示：** 模板中的所有符号（包括 `[`、`]`、`=`、`;`、`,`、`|`、`&`、`:` 等）"
-        "必须使用英文半角符号，不支持中文全角符号。请确保输入法处于英文状态再编写规则。",
+        "**重要提示：** 模板中的所有符号必须使用英文符号，不支持中文全角符号。请确保输入法处于英文状态再编写规则。",
         icon="⚠️",
     )
     cl, cr = st.columns(2)
@@ -654,14 +653,10 @@ with st.expander("📖 翻译规则说明（点击展开）", expanded=False):
 """)
 
 
-# ╔══════════════════════════════════════════════════════════════════╗
-# ║         规则详细示例                                              ║
-# ╚══════════════════════════════════════════════════════════════════╝
+    # ── 详细示例 ──
+    st.markdown("### 📌 详细示例")
 
-with st.expander("📌 规则详细示例（点击展开）", expanded=False):
-    st.markdown("每个操作符的具体用法和真实场景示例。")
-
-    with st.expander("^ SKU变化规则", expanded=True):
+    with st.expander("【符号 ^ 变化规则】", expanded=True):
         st.markdown("""**单独使用**
 | 项目 | 内容 |
 |------|------|
@@ -690,7 +685,7 @@ with st.expander("📌 规则详细示例（点击展开）", expanded=False):
 | 符号说明 | `|` 表示"或"，满足任一条件即可 |
 """)
 
-    with st.expander("! 删除规则", expanded=True):
+    with st.expander("【符号 ! 变化规则】", expanded=True):
         st.markdown("""**单独使用**
 | 项目 | 内容 |
 |------|------|
@@ -701,7 +696,7 @@ with st.expander("📌 规则详细示例（点击展开）", expanded=False):
 | 符号说明 | `!` 表示删除，`[]` 内是要删除的完整行内容 |
 """)
 
-    with st.expander("= 翻译规则（隐式）", expanded=True):
+    with st.expander("【符号 = 变化规则】", expanded=True):
         st.markdown("""**单独使用（键名翻译）**
 | 项目 | 内容 |
 |------|------|
@@ -739,7 +734,7 @@ with st.expander("📌 规则详细示例（点击展开）", expanded=False):
 | 符号说明 | `;` 分隔多条翻译规则，依次执行 |
 """)
 
-    with st.expander("++ 指定位置添加规则", expanded=True):
+    with st.expander("【符号 ++ 变化规则】", expanded=True):
         st.markdown("""**单独使用**
 | 项目 | 内容 |
 |------|------|
@@ -750,7 +745,7 @@ with st.expander("📌 规则详细示例（点击展开）", expanded=False):
 | 符号说明 | `[位置条件] ++ [新增行]`，`++` 前后需有空格 |
 """)
 
-    with st.expander("+ 行末添加规则", expanded=True):
+    with st.expander("【符号 + 变化规则】", expanded=True):
         st.markdown("""**单独使用**
 | 项目 | 内容 |
 |------|------|
@@ -1135,7 +1130,7 @@ with st.expander("🧠 智能规则生成（点击展开）", expanded=False):
         )
         st.session_state.generator_after = after_input
 
-    if st.button("🔍 开始生产翻译规则", use_container_width=True, key="btn_gen_rules"):
+    if st.button("🔍 生成翻译规则", use_container_width=True, key="btn_gen_rules"):
         if not before_input.strip():
             st.warning("请先粘贴「翻译前」的定制项数据")
         elif not after_input.strip():
